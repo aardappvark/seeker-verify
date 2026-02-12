@@ -6,7 +6,7 @@ import java.math.BigInteger
  * Standalone Base58 encoder/decoder for Solana public key conversion.
  * Uses the Bitcoin/Solana Base58 alphabet (no 0, O, I, l).
  */
-internal object Base58 {
+object Base58 {
 
     private const val ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
     private val BASE = BigInteger.valueOf(58)

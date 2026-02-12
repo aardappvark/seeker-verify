@@ -147,6 +147,76 @@ class Token2022ParserTest {
     }
 
     @Test
+    fun `parseMintAccount extracts memberNumber from TokenGroupMember`() {
+        val mintAuth = Base58.decode(SgtConstants.SGT_MINT_AUTHORITY)
+        val groupMint = Base58.decode(SgtConstants.SGT_METADATA_ADDRESS)
+
+        // TokenGroupMember value: 32 bytes mint + 32 bytes group + 8 bytes memberNumber (u64 LE)
+        val randomMint = ByteArray(32) { it.toByte() }
+        // memberNumber = 4217 in little-endian u64
+        val memberNumberBuf = ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN)
+        memberNumberBuf.putLong(4217L)
+        val groupMemberValue = randomMint + groupMint + memberNumberBuf.array()
+
+        val data = buildMockMintAccount(
+            mintAuthority = mintAuth,
+            extensions = listOf(Triple(23, 72, groupMemberValue))
+        )
+        val base64 = java.util.Base64.getEncoder().encodeToString(data)
+
+        val result = Token2022Parser.parseMintAccount(base64)
+
+        assertNotNull(result)
+        assertNotNull(result!!.groupMemberNumber)
+        assertEquals(4217L, result.groupMemberNumber)
+    }
+
+    @Test
+    fun `parseMintAccount returns null memberNumber when extension too short for member number`() {
+        val mintAuth = Base58.decode(SgtConstants.SGT_MINT_AUTHORITY)
+        val groupMint = Base58.decode(SgtConstants.SGT_METADATA_ADDRESS)
+
+        // TokenGroupMember value: only 64 bytes (mint + group, no memberNumber)
+        val randomMint = ByteArray(32) { it.toByte() }
+        val groupMemberValue = randomMint + groupMint
+
+        val data = buildMockMintAccount(
+            mintAuthority = mintAuth,
+            extensions = listOf(Triple(23, 64, groupMemberValue))
+        )
+        val base64 = java.util.Base64.getEncoder().encodeToString(data)
+
+        val result = Token2022Parser.parseMintAccount(base64)
+
+        assertNotNull(result)
+        assertNotNull(result!!.groupMemberGroup)
+        assertNull(result.groupMemberNumber) // Should be null when < 72 bytes
+    }
+
+    @Test
+    fun `parseMintAccount extracts large memberNumber correctly`() {
+        val mintAuth = Base58.decode(SgtConstants.SGT_MINT_AUTHORITY)
+        val groupMint = Base58.decode(SgtConstants.SGT_METADATA_ADDRESS)
+
+        val randomMint = ByteArray(32) { it.toByte() }
+        // memberNumber = 150000 (larger typical value)
+        val memberNumberBuf = ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN)
+        memberNumberBuf.putLong(150_000L)
+        val groupMemberValue = randomMint + groupMint + memberNumberBuf.array()
+
+        val data = buildMockMintAccount(
+            mintAuthority = mintAuth,
+            extensions = listOf(Triple(23, 72, groupMemberValue))
+        )
+        val base64 = java.util.Base64.getEncoder().encodeToString(data)
+
+        val result = Token2022Parser.parseMintAccount(base64)
+
+        assertNotNull(result)
+        assertEquals(150_000L, result!!.groupMemberNumber)
+    }
+
+    @Test
     fun `parseMintAccount handles multiple extensions`() {
         val mintAuth = Base58.decode(SgtConstants.SGT_MINT_AUTHORITY)
         val metadataAddr = Base58.decode(SgtConstants.SGT_METADATA_ADDRESS)

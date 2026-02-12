@@ -46,6 +46,21 @@ object SgtChecker {
     }
 
     /**
+     * Detailed SGT information for a wallet.
+     *
+     * @property hasSgt Whether the wallet holds a valid SGT
+     * @property memberNumber The SGT serial/member number (from TokenGroupMember extension)
+     * @property sgtMintAddress The Base58-encoded mint address of the SGT token
+     * @property sgtTokenAccountAddress The Base58-encoded token account holding the SGT
+     */
+    data class SgtInfo(
+        val hasSgt: Boolean,
+        val memberNumber: Long? = null,
+        val sgtMintAddress: String? = null,
+        val sgtTokenAccountAddress: String? = null
+    )
+
+    /**
      * Check if the wallet at [walletAddress] holds a valid Seeker Genesis Token.
      *
      * This makes 2+ RPC calls (getTokenAccountsByOwner + getMultipleAccounts)
@@ -60,6 +75,24 @@ object SgtChecker {
         walletAddress: String,
         rpcUrl: String = SgtConstants.DEFAULT_RPC_URL
     ): Result<Boolean> {
+        return getWalletSgtInfo(walletAddress, rpcUrl).map { it.hasSgt }
+    }
+
+    /**
+     * Get detailed SGT information for a wallet, including the member/serial number.
+     *
+     * This makes 2+ RPC calls (getTokenAccountsByOwner + getMultipleAccounts)
+     * and should be called from a coroutine scope with IO dispatcher.
+     *
+     * @param walletAddress Base58-encoded Solana wallet public key
+     * @param rpcUrl Solana JSON-RPC endpoint URL (defaults to public mainnet-beta)
+     * @return [Result.success] with [SgtInfo] containing SGT details.
+     *         [Result.failure] with [SgtException] on network/parse errors.
+     */
+    suspend fun getWalletSgtInfo(
+        walletAddress: String,
+        rpcUrl: String = SgtConstants.DEFAULT_RPC_URL
+    ): Result<SgtInfo> {
         val rpcClient = SolanaRpcClient(rpcUrl)
 
         // Step 1: Get all Token-2022 token accounts for the wallet
@@ -69,18 +102,21 @@ object SgtChecker {
         }
 
         if (tokenAccounts.isEmpty()) {
-            return Result.success(false)
+            return Result.success(SgtInfo(hasSgt = false))
         }
 
-        // Step 2: Extract mint addresses from token accounts
-        val mintAddresses = tokenAccounts.mapNotNull { (_, base64Data) ->
+        // Step 2: Extract mint addresses from token accounts, tracking which token account holds which mint
+        val mintToTokenAccount = mutableMapOf<String, String>()
+        val mintAddresses = tokenAccounts.mapNotNull { (tokenAccountPubkey, base64Data) ->
             Token2022Parser.extractMintFromTokenAccount(base64Data)?.let {
-                Base58.encode(it)
+                val mintAddr = Base58.encode(it)
+                mintToTokenAccount[mintAddr] = tokenAccountPubkey
+                mintAddr
             }
         }.distinct()
 
         if (mintAddresses.isEmpty()) {
-            return Result.success(false)
+            return Result.success(SgtInfo(hasSgt = false))
         }
 
         // Step 3: Fetch mint account data (auto-batched in 100s)
@@ -90,15 +126,20 @@ object SgtChecker {
         }
 
         // Step 4: Parse each mint and check SGT criteria
-        for ((_, base64Data) in mintDataMap) {
+        for ((mintAddr, base64Data) in mintDataMap) {
             val parsed = Token2022Parser.parseMintAccount(base64Data) ?: continue
 
             if (isValidSgt(parsed)) {
-                return Result.success(true)
+                return Result.success(SgtInfo(
+                    hasSgt = true,
+                    memberNumber = parsed.groupMemberNumber,
+                    sgtMintAddress = mintAddr,
+                    sgtTokenAccountAddress = mintToTokenAccount[mintAddr]
+                ))
             }
         }
 
-        return Result.success(false)
+        return Result.success(SgtInfo(hasSgt = false))
     }
 
     /**

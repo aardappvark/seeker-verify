@@ -48,13 +48,17 @@ internal object Token2022Parser {
     /**
      * Holds the extracted fields from a Token-2022 mint account
      * that are relevant for SGT verification.
+     *
+     * @property groupMemberNumber The member number (u64 LE) from the TokenGroupMember extension,
+     *           representing the SGT serial number. Null if not present or extension too short.
      */
     data class MintExtensionData(
         val mintAuthority: ByteArray?,
         val metadataPointerAuthority: ByteArray?,
         val metadataPointerAddress: ByteArray?,
         val groupMemberMint: ByteArray?,
-        val groupMemberGroup: ByteArray?
+        val groupMemberGroup: ByteArray?,
+        val groupMemberNumber: Long? = null
     ) {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
@@ -63,7 +67,8 @@ internal object Token2022Parser {
                     metadataPointerAuthority.contentEqualsNullable(other.metadataPointerAuthority) &&
                     metadataPointerAddress.contentEqualsNullable(other.metadataPointerAddress) &&
                     groupMemberMint.contentEqualsNullable(other.groupMemberMint) &&
-                    groupMemberGroup.contentEqualsNullable(other.groupMemberGroup)
+                    groupMemberGroup.contentEqualsNullable(other.groupMemberGroup) &&
+                    groupMemberNumber == other.groupMemberNumber
         }
 
         override fun hashCode(): Int {
@@ -72,6 +77,7 @@ internal object Token2022Parser {
             result = 31 * result + (metadataPointerAddress?.contentHashCode() ?: 0)
             result = 31 * result + (groupMemberMint?.contentHashCode() ?: 0)
             result = 31 * result + (groupMemberGroup?.contentHashCode() ?: 0)
+            result = 31 * result + (groupMemberNumber?.hashCode() ?: 0)
             return result
         }
 
@@ -118,6 +124,7 @@ internal object Token2022Parser {
         var metadataPointerAddress: ByteArray? = null
         var groupMemberMint: ByteArray? = null
         var groupMemberGroup: ByteArray? = null
+        var groupMemberNumber: Long? = null
 
         var offset = TLV_START_OFFSET
         while (offset + TLV_HEADER_SIZE <= data.size) {
@@ -153,6 +160,10 @@ internal object Token2022Parser {
                             offset + PUBKEY_SIZE,
                             offset + PUBKEY_SIZE * 2
                         )
+                        // Extract memberNumber (u64 LE) from bytes 64-71 of extension value
+                        if (extLength >= 72) {
+                            groupMemberNumber = buf.getLong(offset + PUBKEY_SIZE * 2)
+                        }
                     }
                 }
             }
@@ -165,7 +176,8 @@ internal object Token2022Parser {
             metadataPointerAuthority = metadataPointerAuthority,
             metadataPointerAddress = metadataPointerAddress,
             groupMemberMint = groupMemberMint,
-            groupMemberGroup = groupMemberGroup
+            groupMemberGroup = groupMemberGroup,
+            groupMemberNumber = groupMemberNumber
         )
     }
 

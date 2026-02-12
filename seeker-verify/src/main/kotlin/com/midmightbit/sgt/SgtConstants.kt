@@ -22,4 +22,21 @@ object SgtConstants {
 
     /** Maximum addresses per getMultipleAccounts call */
     internal const val MAX_BATCH_SIZE = 100
+
+    // --- SKR Token Constants ---
+
+    /** SKR Token Mint address (standard SPL token, 6 decimals) */
+    const val SKR_TOKEN_MINT = "SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3"
+
+    /** SKR Staking Program ID */
+    const val SKR_STAKING_PROGRAM = "SKRskrmtL83pcL4YqLWt6iPefDqwXQWHSw9S9vz94BZ"
+
+    /** SKR Inflation Program ID */
+    const val SKR_INFLATION_PROGRAM = "SKRiHLtLyB8bbhcJ5HBPYMiLh9GcFLdPaSwozqLteha"
+
+    /** SKR Stake Vault address */
+    const val SKR_STAKE_VAULT = "8isViKbwhuhFhsv2t8vaFL74pKCqaFPQXo1KkeQwZbB8"
+
+    /** Standard SPL Token Program ID */
+    const val TOKEN_PROGRAM_ID = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 }
